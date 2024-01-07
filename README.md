@@ -1,2 +1,16 @@
 # Sandstorm-Weapon-Animation-Fix-Mod
 Source code for an Insurgency: Sandstorm mod. This one fixes a bug with the base-game weapon animations.
+
+There are two implementations at the moment. The first is the working one which is used by the mutators. 
+
+It uses a copy of the default weapon animation blueprint "ABP_Weapon" ("ABP_Weapon_FireAnimFix") from the base game with some minor changes to the event graph to fix bolt/slide animations not playing under some circumstances.
+These changes are made to the "On Play Fire" function, within the "Play Bolt" collapsed graph. It essentially changes a 1 to a 0 which fixes an off-by-one error, which is the cause of the "second to last" shot before a weapon runs dry not playing a bolt animation.
+Additionally it forces the "last bolt" animation to play for the final shot on any weapons which do not have an "empty idle" state. This is because the "last shot" animation does not seem to be used anywhere normally, all guns simply transition to their "idle empty" state when firing the last shot instead. This works well enough for most guns as it shows bolts and slides locked back, but any guns which don't "lock open" on empty (such as AKs) appear to not do anything because they don't have an "idle empty" state to transition to.
+
+The BP_Mutator_WeaponAnimFix mutator works by replacing the current gamemode's default pawn class with the new "BP_Character_Player_WeaponAnimFix_Alt". This pawn class has some logic to replace the anim instance class of the "Weapon Mesh 1P" component to "ABP_Weapon_FireAnimFix" for any guns which are not belt-fed or revolvers. For other weapons it sets the anim instance back to the default "ABP_Weapon". This is to make sure belt-fed weapons preserve their ammo belt depletion animation, as well as some stuff about the revolver that I didn't really look into.
+
+The BP_Mutator_WeaponAnimFix_Shadows mutator works the same way, but instead uses "BP_Character_Player_WeaponAnimFix_Shadows" as the default pawn which is a child of "BP_Character_Player_WeaponAnimFix_Alt". This new pawn class adds some extra logic to force shadows to be enabled for the weapon and arm models, and also includes calls to the parent to override the anim instance.
+
+There is a second implementation which works correctly* in the editor but does not work in-game. "ABP_Weapon_FixChild" includes the same logic changes as "ABP_Weapon_FireAnimFix" but instead of duplicating ABP_Weapon, it is a child of ABP_Weapon. The logic change is done by overriding "On Play Fire" with a new version. This fixes the "post-process" animations used by some weapons, namely the revolver (using ABP_Weapon_Revolver) and belt-fed weapons (ABP_Weapon_Belt). The problem with those post-process blueprints is they make casts to "ABP_Weapon" in parts of their logic, so using a duplicated class fails those casts and does not play the animations, while using a child class works. This means you don't need to swap out the animation blueprint conditionally depending on the weapon and can just always set it to ABP_Weapon_FixChild. Unfortunately while this works in the editor I can't get this to work in the full game. I'm not sure why. You don't see any animation changes, it's as if the override is ignored.
+
+*I was messing with this one to try and coerce it into working, so might not work anymore in it's current state.
